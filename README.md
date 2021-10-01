@@ -1409,7 +1409,7 @@ public class MyWork : BackgroundWorkBase, ISingletonDependency
 ``` json
 "Consul": {
   "ConsulServerOptions": {
-    "OpenSSL": false        // 是否使用 https 访问，默认false
+    "OpenSSL": false,        // 是否使用 https 访问，默认false
     "IP": "192.168.31.201", // consul服务端的IP
     "Port": "8500", 		// consul服务端的Port
     "Datacenter": "dc1"
@@ -1422,7 +1422,7 @@ public class MyWork : BackgroundWorkBase, ISingletonDependency
     "Timeout": 5, 					      // 健康检查超时时间
     "DeregisterCriticalServiceAfter": 20, // 健康检查超时后销毁时间
     "CheckPath": "/Health", 			  // 健康检查地址
-    "OpenSSL": false                    // 是否使用 https 访问，默认false
+    "OpenSSL": false,                    // 是否使用 https 访问，默认false
     "Tag": "16"
   }
 },
