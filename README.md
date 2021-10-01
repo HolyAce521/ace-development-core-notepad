@@ -99,6 +99,27 @@ AdcFramework 框架定义了这个模块类，模块可以依赖其它模块。�
 
 `Configure`方法中的 `app.InitServiceEntrance()` 完成初始化并启动应用程序.
 
+### 扩展容器功能
+
+1. 修改 `Program.cs` 来使用容器扩展
+
+   ```cs
+       public class Program
+       {
+           public static void Main(string[] args)
+           {
+               CreateHostBuilder(args).Build().Run();
+           }
+   
+           public static IHostBuilder CreateHostBuilder(string[] args) =>
+               Host.CreateDefaultBuilder(args)
+                   .ConfigureWebHostDefaults(webBuilder =>
+                   {
+                       webBuilder.UseStartup<Startup>();
+                   })
+                   .UseAdcContainer(); // 添加这一行
+       }
+   ```
 
 ### 运行应用程序
 
