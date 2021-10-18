@@ -90,19 +90,19 @@ Install-Package Youshow.Adc.AspNetCore.Web
                 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Youshow.Demo.Api v1"));
             }
         }
-    }
-	// 在这里定义 miniApi
-    public override void OnRouteInitialization(RouteBuilderContext context)
-    {
-        var builder = context.GetEndpointRouteBuilder();
-        builder.MapGet("/api/getname", () =>
+        // 在这里定义 miniApi
+        public override void OnRouteInitialization(RouteBuilderContext context)
         {
-            return "Ace";
-        });
-        builder.MapGet("/api/getuser", (UserAppService userApp) =>
-        {
-            return userApp.GetUser();
-        });
+            var builder = context.GetEndpointRouteBuilder();
+            builder.MapGet("/api/getname", () =>
+            {
+                return "Ace";
+            });
+            builder.MapGet("/api/getuser", (UserAppService userApp) =>
+            {
+                return userApp.GetUser();
+            });
+        } 
     }
 ```
 
