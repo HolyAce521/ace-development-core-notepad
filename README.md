@@ -29,6 +29,8 @@ Install-Package Youshow.Adc.AspNetCore.Web
 
 ### 创建ADC模块
 
+#### 在 .NET 5 中
+
 ```cs
     [RelyOn(
         typeof(AdcAspNetCoreWebModule)
@@ -58,6 +60,54 @@ Install-Package Youshow.Adc.AspNetCore.Web
     }
 ```
 
+#### 在 .NET 6 中
+
+**AdcFramework** 中定义了 **miniApi** 的创建入口，可以统一系统化的管理，无需与中间件写在一起
+
+```C#
+    [RelyOn(
+        typeof(AdcAspNetCoreWebModule)
+    )]
+    public class YoushowDemoApiModule : AdcModule
+    {
+        public override void ConfigureServices(ServiceConfigurationContext context)
+        {
+            var services = context.Services;
+            services.AddSwaggerGen(c =>
+            {
+                c.SwaggerDoc("v1", new OpenApiInfo { Title = "Youshow.Demo.Api", Version = "v1" });
+                c.DocInclusionPredicate((_, _) => true);
+            });
+        }
+        public override void OnApplicationInitialization(ApplicationInitializationContext context)
+        {
+            var env = context.GetEnvironment();
+            var app = context.GetApplicationBuilder();
+            if (env.IsDevelopment())
+            {
+                app.UseDeveloperExceptionPage();
+                app.UseSwagger();
+                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Youshow.Demo.Api v1"));
+            }
+        }
+    }
+	// 在这里定义 miniApi
+    public override void OnRouteInitialization(RouteBuilderContext context)
+    {
+        var builder = context.GetEndpointRouteBuilder();
+        builder.MapGet("/api/getname", () =>
+        {
+            return "Ace";
+        });
+        builder.MapGet("/api/getuser", (UserAppService userApp) =>
+        {
+            return userApp.GetUser();
+        });
+    }
+```
+
+
+
 > **小贴士**
 >
 > 在创建模块时，重写 `ConfigureServices` 方法和 `OnApplicationInitialization` 方法，再将 StartUp 中 `ConfigureServices` 和 `Configure` 方法中的内容对应复制进来即可。但是一些通用配置无需复制，在 `Youshow.Adc.AspNetCore.Web` 模块中已经集成
@@ -70,6 +120,8 @@ AdcFramework 框架定义了这个模块类，模块可以依赖其它模块。�
 ### 启动类
 
 接下来修改启动类集成AdcFramework模块系统
+
+#### 在 .NET5 中
 
 ```cs
     public class Startup
@@ -95,11 +147,35 @@ AdcFramework 框架定义了这个模块类，模块可以依赖其它模块。�
     }
 ```
 
+#### 在 .NET6 中
+
+```C#
+using demo.Youshow.Demo.NewApi;
+using Microsoft.Extensions.DependencyInjection;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseAdcContainer();
+// Add services to the container.
+
+builder.Services.AddServiceEntrance<YoushowDemoNewApiModule>(); // 在这里定义服务注册入口
+
+var app = builder.Build();
+
+app.InitServiceEntrance(); // 在这里定义中间件初始化
+
+
+app.Run();
+
+```
+
+
+
 `services.AddServiceEntrance<YoushowDemoApiModule>()` 添加了所有 `AdcModule` 模块中定义的全部服务.
 
 `Configure`方法中的 `app.InitServiceEntrance()` 完成初始化并启动应用程序.
 
 ### 扩展容器功能
+
 修改 `Program.cs` 来使用容器扩展
 
 ```cs
@@ -109,7 +185,7 @@ AdcFramework 框架定义了这个模块类，模块可以依赖其它模块。�
         {
             CreateHostBuilder(args).Build().Run();
         }
-   
+
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
                 .ConfigureWebHostDefaults(webBuilder =>
@@ -119,6 +195,7 @@ AdcFramework 框架定义了这个模块类，模块可以依赖其它模块。�
                 .UseAdcContainer(); // 添加这一行
     }
 ```
+
 
 ### 运行应用程序
 
@@ -312,8 +389,29 @@ Install-Package Youshow.Adc.EntityFrameworkCore.SqlServer
 
 ### 创建实体
 
+#### 创建基础模型
+
+基础模型作为 **AdcFramework** 中一切领域模型的根本，不可或缺，否则将无法与数据库产生任何交互
+
 ```C#
     public class User : BaseModel<int> // BaseModel 需要引入 Youshow.Adc.Domain 模块
+    {
+        public string UserNo { get; set; }
+        public string UserName { get; set; }
+        public string Password { get; set; }
+        public bool IsDelete { get; set; }
+        public int UserLevel { get; set; }
+    }
+```
+
+
+
+#### 创建普通实体模型
+
+`EntityModel` 适合聚合实体模型的创建，同时加入了乐观并发锁，在聚合并发时可以有效避免高并发带来的数据更新混乱
+
+```C#
+    public class User : EntityModel<int> // EntityModel 需要引入 Youshow.Adc.Domain 模块
     {
         public string UserNo { get; set; }
         public string UserName { get; set; }
@@ -474,6 +572,24 @@ public class YoushowDemoDbContext : AdcDbContext<YoushowDemoDbContext>
 
 
 
+### 配置设计器工厂
+
+AdcFramework 创建设计器工厂类非常简单，主要逻辑在框架中已经设定好了，只要继承后，加点配置即可。
+
+```C#
+public class YoushowDemoDesignTimeFactory : AdcMySqlDesignTimeDbContextFactory<YoushowDemoDbContext>
+{
+    public override AdcDesignTimeDbContextOptions Options => new()
+    {
+        StartupProjectPath = @"X:\Youshow.Demo.Api" //appsetting.json所在目录
+    };
+}
+```
+
+除了 `AdcMySqlDesignTimeDbContextFactory` ，还有 `AdcSqlServerDesignTimeDbContextFactory` 等。
+
+
+
 # 能力服务层
 
 **AdcFramework** 提供了一个能力服务模块，这个模块的作用其实很简单
@@ -545,7 +661,7 @@ public class YoushowDemoApiModule : AdcModule
         services.Configure<AdcAspNetCoreWebOptions>(opt =>
         {
            opt.Create(typeof(YoushowDemoApplicationModule).Assembly); // 注册YoushowDemoApplicationModule下所有的服务方法为动态API
-           opt.AddControllerInExtends(true); 
+           opt.AddControllerInContainer(true); 
         });
     }
     public override void OnApplicationInitialization(ApplicationInitializationContext context)
@@ -1396,110 +1512,6 @@ public class MyWork : BackgroundWorkBase, ISingletonDependency
 
 
 
-# 微服务
-
-说到 **DDD**，就免不了谈起 **微服务** ，这二者可谓是相辅相成，相互成就。在 **AdcFramework** 中可以及其简单的将项目改造成微服务
-
-## 服务注册发现（Consul）
-
-### 在配置文件中配置
-
-在 `appsettings.json` 中配置 **Consul服务器端以及本地服务** 的一些信息
-
-``` json
-"Consul": {
-  "ConsulServerOptions": {
-    "OpenSSL": false,        // 是否使用 https 访问，默认false
-    "IP": "192.168.31.201", // consul服务端的IP
-    "Port": "8500", 		// consul服务端的Port
-    "Datacenter": "dc1"
-  },
-  "ConsulLocalOptions": {
-    "IP": "localhost",                    // consul客户端，即本地的IP
-    "Port": "5858", 					  // consul客户端，即本地的Port
-    "GroupName": "YoushowDemo", 		  // 当前服务的组名
-    "Interval": 10, 					  // 健康检查间隔时间
-    "Timeout": 5, 					      // 健康检查超时时间
-    "DeregisterCriticalServiceAfter": 20, // 健康检查超时后销毁时间
-    "CheckPath": "/Health", 			  // 健康检查地址
-    "OpenSSL": false,                    // 是否使用 https 访问，默认false
-    "Tag": "16"
-  }
-},
-```
-
-### 引入Youshow.Adc.MicroService.Consul包
-
-```
-Install-Package Youshow.Adc.MicroService.Consul
-```
-
-### 添加模块
-
-```C#
-[RelyOn(
-	typeof(AdcAspNetCoreWebModule),
-	typeof(AdcMicroServiceConsulModule), // 添加AdcMicroServiceConsulModule模块
-	typeof(YoushowDemoApplicationModule)
-)]
-public class YoushowDemoApiModule : AdcModule
-{
-}    
-```
-
-此时，启动项目即可注册当前微服务
-
-> 小贴士
->
-> 当然我们也可以讲模块添加到能力服务层中。
-
-
-
-### 与其他微服务进行HTTP交互
-
-在微服务之间除了可以使用总线通信外，最常用的通信方式就是通过HTTP进行通信。方法如下。
-
-```C#
-[ApiController]
-[Route("[controller]")]
-public class WeatherForecastController : BaseController
-{
-    // 属性注入IConsulDispatcherHelper，用于进行微服务间数据交互
-    public IConsulDispatcherHelper ConsulDispatcherHelper { get; set; }
-    [HttpGet]
-    public async Task<List<UserDto>> Get()
-    {
-        //用Get方式向其他微服务获取数据
-        return await ConsulDispatcherHelper
-        .GetRequireAsync<List<UserDto>>("http://YoushowDemo/app/user/GetUserName?id=1");
-    }
-}
-```
-
-除了 `GetRequireAsync` 访问方法，AdcFramework 还提供了一下几种方法：
-
-`GetRequire()`、`GetRequireAsync()`、`GetRequire<T>()`、`GetRequireAsync<T>()`
-
-`PostRequire()`、`PostRequireAsync()`、`PostRequire<T>()`、`PostRequireAsync<T>()`
-
-`PutRequire()`、`PutRequireAsync()`、`PutRequire<T>()`、`PutRequireAsync<T>()`
-
-`DeleteRequire()`、`DeleteRequireAsync()`、`DeleteRequire<T>()`、`DeleteRequireAsync<T>()`
-
-#### HTTP 访问地址格式
-
-```
-http://GroupName（目标微服务组名）/要访问的具体地址
-```
-
-以当前项目为例就是
-
-```
-http://YoushowDemo/app/user/GetUserName?id=1
-```
-
-
-
 # 用户验证
 
 AdcFramework集成了 **jwt** 用户验证，可以非常方便的实现用户 **鉴权验证** 和 **授权验证** 。同时也开放了验证功能的扩展。
@@ -1635,7 +1647,7 @@ public async Task<List<UserDto>> GetAuth()
 
 开启 **AdcFramework默认授权验证** 方式很简单，只需要调用 `UseAuthorizationPolicy(true)`方法即可，注意，这里默认传入参数是 `false`
 
-```C#
+​```C#
 [RelyOn(
     typeof(AdcAspNetCoreWebModule),
     typeof(AdcMicroServiceConsulModule),
@@ -1708,17 +1720,14 @@ public class MyAuthorizationHandler : AdcAuthorizationHandler
         HttpContext httpContext, 
         AdcAuthorizationRequirement requirement)
     {
-        return new AuthResult{
-            IsSuccess = true,
-            Requirement = requirement
-        };
+        // ...
     }
 }
 ```
 
 >注意！
 >
->如果是 **自定义扩展授权验证** ，则理论上不需要再使用 **数据管道** ，但是我们依旧可以使用 **数据管道** 以达到 业务逻辑分离
+>如果是 **自定义扩展授权验证** ，则理论上不需要再使用 **数据管道** ，但是如果我们依旧想使用 **数据管道** 以达到 业务逻辑分离，可以使用 `await requirement.GetPermissionsAsync()` 来获取管道数据
 
 ### 在模块中加入验证类
 
@@ -1728,6 +1737,190 @@ services.AddJwtAuthentication(opt =>
 {
 	opt.UseAuthorizationPolicy<MyAuthorizationHandler>(); // 加入自定义扩展授权验证类
 });
+```
+
+
+# 微服务
+
+说到 **DDD**，就免不了谈起 **微服务** ，这二者可谓是相辅相成，相互成就。在 **AdcFramework** 中可以及其简单的将项目改造成微服务
+
+## 服务注册发现（Consul）
+
+### 在配置文件中配置
+
+在 `appsettings.json` 中配置 **Consul服务器端以及本地服务** 的一些信息
+
+``` json
+"Consul": {
+  "ConsulServerOptions": {
+    "OpenSSL": false, 		// 是http请求还是https请求，默认flase不打开，即http访问
+    "IP": "192.168.31.201", // consul服务端的IP
+    "Port": "8500", 		// consul服务端的Port
+    "Datacenter": "dc1"
+  },
+  "ConsulLocalOptions": {
+    "IP": "localhost",                    // consul客户端，即本地的IP
+    "Port": "5858", 					  // consul客户端，即本地的Port
+    "GroupName": "YoushowDemo", 		  // 当前服务的组名
+    "Interval": 10, 					  // 健康检查间隔时间
+    "Timeout": 5, 					      // 健康检查超时时间
+    "DeregisterCriticalServiceAfter": 20, // 健康检查超时后销毁时间
+    "CheckPath": "/Health", 			  // 健康检查地址
+    "OpenSSL": false, 				      // 是http请求还是https请求，默认flase不打开，即http访问
+    "Tag": "16"
+  }
+},
+```
+
+### 引入Youshow.Adc.MicroService.Consul包
+
+```
+Install-Package Youshow.Adc.MicroService.Consul
+```
+
+### 添加模块
+
+```C#
+[RelyOn(
+	typeof(AdcAspNetCoreWebModule),
+	typeof(AdcMicroServiceConsulModule), // 添加AdcMicroServiceConsulModule模块
+	typeof(YoushowDemoApplicationModule)
+)]
+public class YoushowDemoApiModule : AdcModule
+{
+}    
+```
+
+此时，启动项目即可注册当前微服务
+
+> 小贴士
+>
+> 当然我们也可以讲模块添加到能力服务层中。
+
+
+
+### 与其他微服务进行HTTP交互
+
+#### ConsulDispatcherHelper使用
+
+在微服务之间除了可以使用总线通信外，最常用的通信方式就是通过HTTP进行通信。方法如下。
+
+```C#
+[ApiController]
+[Route("[controller]")]
+public class WeatherForecastController : BaseController
+{
+    // 属性注入IConsulDispatcherHelper，用于进行微服务间数据交互
+    public IConsulDispatcherHelper ConsulDispatcherHelper { get; set; }
+    [HttpGet]
+    public async Task<List<UserDto>> Get()
+    {
+        //用Get方式向其他微服务获取数据
+        return await ConsulDispatcherHelper
+        .GetRequireAsync<List<UserDto>>("http://YoushowDemo/app/user/GetUserName?id=1");
+    }
+}
+```
+
+在 `ConsulDispatcherHelper` 中可以定义请求头Header。
+
+除了 `GetRequireAsync` 访问方法，AdcFramework 还提供了一下几种方法：
+
+`GetRequire()`、`GetRequireAsync()`、`GetRequire<T>()`、`GetRequireAsync<T>()`
+
+`PostRequire()`、`PostRequireAsync()`、`PostRequire<T>()`、`PostRequireAsync<T>()`
+
+`PutRequire()`、`PutRequireAsync()`、`PutRequire<T>()`、`PutRequireAsync<T>()`
+
+`DeleteRequire()`、`DeleteRequireAsync()`、`DeleteRequire<T>()`、`DeleteRequireAsync<T>()`
+
+#### 仓储的使用
+
+在 **AdcFramwork** 中还提供了仓储的使用。
+
+```C#
+[ApiController]
+[Route("[controller]")]
+public class WeatherForecastController : BaseController
+{
+    public IJwtManager JwtManager { get; set; } // 引入jwt
+    public IConsulRepository ConsulRepository { get; set; } // 引入仓储
+    [HttpGet]
+    public dynamic Get(int userId)
+    {
+       
+        var token = $"Bearer {JwtManager.CreateToken()}";
+        var userDtos = ConsulRepository.Get<List<UserDto>>(
+            "http://YoushowDemo/WeatherForecast/Auth",
+            token //如果没有验证，可以不传
+            );
+    }
+    
+    [HttpGet("Auth")]
+    [Authorize(AdcJwtPolicyDefault.AUTHORIZATION_POLICY)]
+    public async Task<List<UserDto>> GetAuth()
+    {
+        //...
+    }
+    
+    [HttpPost("Auth")]
+    [Authorize(AdcJwtPolicyDefault.AUTHORIZATION_POLICY)]
+    public async Task<List<UserDto>> Post(UserCreateDto createDto)
+    {
+        //...
+    }
+}
+```
+
+除了以上方法外，还可以传参，传参的方式有很多种
+
+##### DispatcherParameter 传参
+
+`DispatcherParameter` 传参很像 `SqlParameter` ，具体使用如下
+
+```C#
+var token = $"Bearer {JwtManager.CreateToken()}";
+var userDtos = ConsulRepository.Get<List<UserDto>>(
+    "http://YoushowDemo/WeatherForecast/Auth",
+    token,
+    new DispatcherParameter("Id", 1),
+    new DispatcherParameter("UserName", "Ace")
+    );
+```
+
+**Get** 方式传参本质上还是直接拼接访问地址，如：`http://www.your.url?id=1`，所以我们可以直接传入拼接的地址也是一样的。
+
+##### 实体模型传参
+
+而 **Post、Put、Delete** 方式，除了可以使用 `DispatcherParameter` 方式传参，还可以直接使用实体模型传参
+
+```C#
+var token = $"Bearer {JwtManager.CreateToken()}";
+var userDtos = ConsulRepository.Post<List<UserDto>, UserDto>(
+    "http://YoushowDemo/WeatherForecast/Auth",
+    new UserDto
+    {
+        UserNo = "2251610468",
+        UserName = "全栈Ace"
+    },
+    token
+    );
+```
+
+
+
+
+
+#### HTTP 访问地址格式
+
+```
+http://GroupName（目标微服务组名）/要访问的具体地址
+```
+
+以当前项目为例就是
+
+```
+http://YoushowDemo/app/user/GetUserName?id=1
 ```
 
 
@@ -1881,8 +2074,8 @@ public class WeatherForecastController : BaseController
     [HttpGet]
     public string Get(int userId)
     {
-        // 写入缓存
-        RedisCache.SetHashMemory<UserCto>(UserCtos.GetList());
+        // 写入缓存，缓存时间20秒，如果不设置过期时间，默认20分钟
+        RedisCache.SetHashMemory<UserCto>(UserCtos.GetList(), 20);
     }
     
     public async Task<List<UserDto>> GetAuth()
@@ -1898,6 +2091,8 @@ public class WeatherForecastController : BaseController
 在这里 `*` 代表模糊匹配，即获取该 **CacheName** 下所有的内容并返回。当然我们可以 **指定自主键**，以返回需要的内容。
 
 当然 **AdcFramework** 也为大家准备了很多操作Redis缓存的方法，这里也不一一列举了。
+
+
 
 # ElasticSearch全文搜索
 
