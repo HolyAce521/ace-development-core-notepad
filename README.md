@@ -31,6 +31,8 @@ Install-Package Youshow.Adc.AspNetCore.Web
 
 #### 在 .NET 5 中
 
+注意：**1.4.0** 适配 **.NET6** ，但是使用方式和这里相同
+
 ```cs
     [RelyOn(
         typeof(AdcAspNetCoreWebModule)
@@ -102,7 +104,7 @@ Install-Package Youshow.Adc.AspNetCore.Web
             {
                 return userApp.GetUser();
             });
-        } 
+        }        
     }
 ```
 
@@ -147,34 +149,11 @@ AdcFramework 框架定义了这个模块类，模块可以依赖其它模块。�
     }
 ```
 
-#### 在 .NET6 中
-
-```C#
-using demo.Youshow.Demo.NewApi;
-using Microsoft.Extensions.DependencyInjection;
-
-var builder = WebApplication.CreateBuilder(args);
-builder.Host.UseAdcContainer();
-// Add services to the container.
-
-builder.Services.AddServiceEntrance<YoushowDemoNewApiModule>(); // 在这里定义服务注册入口
-
-var app = builder.Build();
-
-app.InitServiceEntrance(); // 在这里定义中间件初始化
-
-
-app.Run();
-
-```
-
-
-
 `services.AddServiceEntrance<YoushowDemoApiModule>()` 添加了所有 `AdcModule` 模块中定义的全部服务.
 
 `Configure`方法中的 `app.InitServiceEntrance()` 完成初始化并启动应用程序.
 
-### 扩展容器功能
+##### 扩展容器功能
 
 修改 `Program.cs` 来使用容器扩展
 
@@ -196,10 +175,22 @@ app.Run();
     }
 ```
 
+#### 在 .NET6 中
+
+在 `Program.cs` 中只要写成如下格式即可，不再需要添加 `app.InitServiceEntrance()` ，且不需要再扩展容器
+
+```C#
+WebApplication
+    .CreateBuilder(args)
+    .AddServiceEntrance<YoushowDemoNewApiModule>()
+    .Run();
+```
+
 
 ### 运行应用程序
 
 F5启动调试，它将正常启动项目
+
 
 
 # 使用扩展容器
@@ -207,8 +198,6 @@ F5启动调试，它将正常启动项目
 虽然AspNet Core的依赖注入(DI)容器适用于基本要求,但未提供属性注入等功能，这些功能是AdcFramework执行某些功能所必需的。
 
 对AspNet Core的DI容器做扩展并集成到AdcFramework非常简单
-
-
 
 ## 扩展AspNet Core的依赖注入(DI)容器
 
@@ -220,8 +209,10 @@ Install-Package Youshow.Adc.Container
 
 ### 扩展容器功能
 
-1. 修改 `Program.cs` 来使用容器扩展
+1. **（6.0.0版之后可忽略扩展配置，默认直接集成）**修改 `Program.cs` 来使用容器扩展
 
+   注意！6.0.0版之后可忽略扩展配置，默认直接集成，毕竟不用AdcFramework自己的容器，很多功能就无法使用，所以默认扩展，无需再手动Use
+   
    ```cs
        public class Program
        {
@@ -239,6 +230,7 @@ Install-Package Youshow.Adc.Container
                    .UseAdcContainer(); // 添加这一行
        }
    ```
+   
 2. 开启 控制器 属性注入和字段注入功能
 
    ```cs
@@ -342,9 +334,9 @@ Install-Package Youshow.Adc.Container
 
 ## 使用字段注入
 
-除此以外，字段在 `AdcFramework` 框架中也可以被直接注入，同样可以通过 `[ForbidWrite]` 特性阻止其被注入。使用方法和属性注入一致。
+**（据网友建议，此功能在6.0.0版后已废除）**除此以外，字段在 `AdcFramework` 框架中也可以被直接注入，同样可以通过 `[ForbidWrite]` 特性阻止其被注入。使用方法和属性注入一致。
 
-> 小贴士
+> **（据网友建议，此功能在6.0.0版后已废除）**小贴士
 >
 > 从这里我们可以发现，由于 **AdcFramework** 中字段也会被自动注入，这就使得构造函数注入彻底沦为了鸡肋，看似可有可无。但是如果我们需要在类执行构造函数时，就要执行某些类型的实例对象，这个时候才需要使用构造函数注入。
 
@@ -609,7 +601,7 @@ Install-Package Youshow.Adc.Ability
 
 ```C#
 [RelyOn(
-    typeof(AdcAbilityModule),
+    typeof(AdcAbilityModule), // 加入这个模块
     typeof(YoushowDemoEntityFrameworkCoreModule)
 )]
 public class YoushowDemoApplicationModule:AdcModule
@@ -765,6 +757,18 @@ public class YoushowDemoApplicationModule:AdcModule
 }
 ```
 
+#### 6.0.0版本后的改动
+
+笔者认为框架就是要简单易用，Automapper，既然用了，肯定是要映射文件的，干嘛还要另外配置呢，对吧！
+
+所以在 **6.0.0** 版本之后，可以不用再写配置，系统会直接添加映射类，当然如果需要依旧可以指定添加映射类，或者在不指定添加的情况下，指定移除某个映射类
+
+```C#
+services.Configure<AdcAutoMapperOptions>(opt=>{
+    opt.ExcludeProfile<YoushowDemoApplicationProfile>();
+});
+```
+
 ### 使用映射
 
 ```C#
@@ -798,7 +802,7 @@ Install-Package Youshow.Adc.Domain
 
 ```C#
 [RelyOn(
-    typeof(AdcDomainModule)
+    typeof(AdcDomainModule) // 加入这个模块
 )]
 public class YoushowDemoDomainModule:AdcModule
 {
@@ -1055,7 +1059,7 @@ Install-Package Youshow.Adc.EventBus.RabbitMQ
 [RelyOn(
     typeof(AdcAbilityModule),
     typeof(AdcAutoMapperModule),
-    typeof(AdcEventBusRabbitMqModule),
+    typeof(AdcEventBusRabbitMqModule), // 加入RabbitMQ模块
     typeof(YoushowDemoEntityFrameworkCoreModule)
 )]
 public class YoushowDemoApplicationModule:AdcModule
@@ -1254,29 +1258,6 @@ public class YoushowDemoApiModule : AdcModule
 Install-Package Youshow.Adc.BackgroundWork
 ```
 
-## 添加总线模块
-
-```C#
-[RelyOn(
-    typeof(AdcEventBusModule),
-    typeof(AdcAbilityModule),
-    typeof(AdcAutoMapperModule),
-    typeof(YoushowDemoEntityFrameworkCoreModule)
-)]
-public class YoushowDemoApplicationModule : AdcModule
-{
-    public override void ConfigureServices(ServiceConfigurationContext context)
-    {
-        var services = context.Services;
-        services.Configure<AdcAutoMapperOptions>(opt=>{
-            opt.AddProfile<YoushowDemoApplicationProfile>();
-        });
-    }
-}
-```
-
-
-
 
 
 ## 周期后台工作
@@ -1315,7 +1296,7 @@ public class MyTestPeriodicBackgroundWork : PeriodicBackgroundWorkBase
     [RelyOn(
         typeof(AdcAbilityModule),
         typeof(AdcAutoMapperModule),
-        typeof(AdcBackgroundWorkModule),
+        typeof(AdcBackgroundWorkModule), // 加入后台工作个模块
         typeof(YoushowDemoEntityFrameworkCoreModule)
     )]
     public class YoushowDemoApplicationModule:AdcModule
@@ -1479,7 +1460,7 @@ public class OrderService : AbilityServicer, IOrderService
         {
             // ...
         });
-        OvertimeOrderDeleteBackgroundWork.StartAsync(order);;
+        OvertimeOrderDeleteBackgroundWork.StartAsync(order); // 启动定时任务
         return userdtos;
     }
 }
@@ -1573,7 +1554,6 @@ public class YoushowDemoApiModule : AdcModule
 public class WeatherForecastController : BaseController
 {
     public  IJwtManager JwtManager { get; set; }
-    public IConsulDispatcherHelper ConsulDispatcherHelper { get; set; }
     [HttpGet]
     public string Get(int userId)
     {
@@ -1634,7 +1614,7 @@ public async Task<List<UserDto>> GetAuth()
 
 ### 添加鉴权特性
 
-```[HttpGet("Auth")]
+```C#
 [HttpGet("Auth")]
 [Authorize(AdcJwtPolicyDefault.AUTHORIZATION_POLICY)] // 使用AdcFramework默认授权验证时的鉴权特性
 public async Task<List<UserDto>> GetAuth()
@@ -1642,12 +1622,13 @@ public async Task<List<UserDto>> GetAuth()
     return await ConsulDispatcherHelper
     .GetRequireAsync<List<UserDto>>("http://YoushowDemo/app/user/GetUserName?id=1");
 }
+```
 
 ### 开启AdcFramework默认授权验证
 
 开启 **AdcFramework默认授权验证** 方式很简单，只需要调用 `UseAuthorizationPolicy(true)`方法即可，注意，这里默认传入参数是 `false`
 
-​```C#
+```C#
 [RelyOn(
     typeof(AdcAspNetCoreWebModule),
     typeof(AdcMicroServiceConsulModule),
@@ -1665,6 +1646,7 @@ public class YoushowDemoApiModule : AdcModule
             opt.UseAuthorizationPolicy(true); // 开启AdcFramework默认授权验证
         });
     }
+}   
 ```
 
 
@@ -1720,7 +1702,11 @@ public class MyAuthorizationHandler : AdcAuthorizationHandler
         HttpContext httpContext, 
         AdcAuthorizationRequirement requirement)
     {
-        // ...
+        var userPermissions = await requirement.GetPermissionsAsync(); // 获取管道数据
+        return new AuthResult{
+            IsSuccess = true,
+            Requirement = requirement
+        };
     }
 }
 ```
