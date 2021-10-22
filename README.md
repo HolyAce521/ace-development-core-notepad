@@ -83,14 +83,17 @@ Install-Package Youshow.Adc.AspNetCore.Web
         }
         public override void OnApplicationInitialization(ApplicationInitializationContext context)
         {
-            var env = context.GetEnvironment();
-            var app = context.GetApplicationBuilder();
-            if (env.IsDevelopment())
-            {
-                app.UseDeveloperExceptionPage();
-                app.UseSwagger();
-                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Youshow.Demo.Api v1"));
-            }
+            var app = context.GetWebApplication();
+            
+			// Configure the HTTP request pipeline.
+			if (app.Environment.IsDevelopment())
+			{
+    			app.UseSwagger();
+    			app.UseSwaggerUI();
+			}
+			app.UseHttpsRedirection();
+			app.UseAuthorization();
+			app.MapControllers();
         }
         // 在这里定义 miniApi
         public override void OnRouteInitialization(RouteBuilderContext context)
